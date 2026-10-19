@@ -1,78 +1,89 @@
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-// Dirección I2C de la LCD 16x2
+// Configuracion de la pantalla LCD I2C 16x2
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-// Pin del potenciómetro
-const int potPin = 34; // GPIO 34 (ADC1)
+// Pin del potenciometro
+const int potPin = 34;
 
-// Variables para el reloj (Inicia en 03:26:00 como en tu ejemplo)
-int horas = 3;
-int minutos = 26;
-int segundos = 0;
+// Hora inicial del reloj
+int hora = 3;
+int minuto = 26;
+int segundo = 0;
 
-unsigned long previoMillis = 0;
-const long intervalo = 1000; // 1 segundo (1000 ms)
+// Control del tiempo
+unsigned long previo = 0;
+const unsigned long intervalo = 1000;
 
 void setup() {
-  // Inicialización del puerto serie
   Serial.begin(115200);
-  delay(1000); // Pausa para estabilizar la comunicación serial
 
-  // Inicialización del bus I2C (SDA = 21, SCL = 22)
+  // Configuracion I2C del ESP32
   Wire.begin(21, 22);
 
-  // Inicializar pantalla LCD
+  // Inicializacion de la LCD
   lcd.init();
   lcd.backlight();
   lcd.clear();
+
+  // Resolucion ADC del ESP32: 12 bits (0 a 4095)
+  analogReadResolution(12);
+
+  Serial.println("Reloj digital y lectura del potenciometro");
 }
 
 void loop() {
-  unsigned long actualMillis = millis();
+  unsigned long actual = millis();
 
-  // Se ejecuta exactamente cada 1 segundo
-  if (actualMillis - previoMillis >= intervalo) {
-    previoMillis = actualMillis;
+  // Actualizar el reloj cada segundo
+  if (actual - previo >= intervalo) {
+    previo += intervalo;
+    segundo++;
 
-    // --- LÓGICA DE TIEMPO ---
-    segundos++;
-    if (segundos >= 60) {
-      segundos = 0;
-      minutos++;
-      if (minutos >= 60) {
-        minutos = 0;
-        horas++;
-        if (horas >= 24) {
-          horas = 0;
+    if (segundo >= 60) {
+      segundo = 0;
+      minuto++;
+
+      if (minuto >= 60) {
+        minuto = 0;
+        hora++;
+
+        if (hora >= 24) {
+          hora = 0;
         }
       }
     }
-
-    // Leer el valor instantáneo del potenciómetro
-    int valorPot = analogRead(potPin);
-
-    // --- 1. MOSTRAR EN MONITOR SERIAL ---
-    // Formato: Hora actual: HH:MM:SS | Potenciometro: XXXX
-    char bufferSerial[65];
-    snprintf(bufferSerial, sizeof(bufferSerial), 
-             "Hora actual: %02d:%02d:%02d | Potenciometro: %d", 
-             horas, minutos, segundos, valorPot);
-    Serial.println(bufferSerial);
-
-    // --- 2. MOSTRAR EN LA PANTALLA LCD 16x2 ---
-    // Fila superior: Hora centrada "03:26:15"
-    char bufferHora[9];
-    snprintf(bufferHora, sizeof(bufferHora), "%02d:%02d:%02d", horas, minutos, segundos);
-    lcd.setCursor(4, 0); // Columna 4 para centrar "HH:MM:SS" (8 caracteres)
-    lcd.print(bufferHora);
-
-    // Fila inferior: "POT: 1308"
-    lcd.setCursor(0, 1); // Inicio de la Fila 1
-    lcd.print("POT: ");
-    lcd.print(valorPot);
-    lcd.print("    "); // Espacios en blanco para limpiar dígitos sobrantes
   }
+
+  // Leer el potenciometro
+  int valor = analogRead(potPin);
+
+  // Fila superior: reloj HH:MM:SS
+  lcd.setCursor(4, 0);
+
+  if (hora < 10) lcd.print('0');
+  lcd.print(hora);
+  lcd.print(':');
+
+  if (minuto < 10) lcd.print('0');
+  lcd.print(minuto);
+  lcd.print(':');
+
+  if (segundo < 10) lcd.print('0');
+  lcd.print(segundo);
+
+  // Fila inferior: potenciometro
+  lcd.setCursor(0, 1);
+  lcd.print("POT: ");
+  lcd.print(valor);
+  lcd.print("       "); // Borrar posibles caracteres sobrantes
+
+  // Monitor serial
+  Serial.printf("Hora: %02d:%02d:%02d | Potenciometro: %d\n",
+                hora, minuto, segundo, valor);
+
+  delay(100);
 }
